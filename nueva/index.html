@@ -227,6 +227,9 @@ var CONFIG = {
 
   // ---------------------------------------------------------------- arranque y sesión
   function arrancar() {
+    // Desde Talento Humano se llega con la sesión en el #fragmento (no viaja al servidor); se guarda y se borra de la barra
+    var m = location.hash.match(/[#&]sesion=([^&]+)/);
+    if (m) { guardado.set('ft_marca_token', decodeURIComponent(m[1])); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* */ } }
     S.token = guardado.get('ft_marca_token');
     if (!S.token) return pantallaLogin();
     api('inicio').then(function (d) { aplicar(d); armar(); }).catch(function (e) {
