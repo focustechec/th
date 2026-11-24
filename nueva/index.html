@@ -274,9 +274,9 @@ var CONFIG = {
 
   function pintarNav() {
     var items = [['inicio', 'Inicio', 'inicio'], ['marcaciones', 'Marcaciones', 'reloj'], ['permisos', 'Permisos', 'doc']];
-    if (S.d.esAprobador || S.d.porAprobar.length) items.push(['aprobar', 'Aprobar', 'aprobar']);
+    if (S.d.esAprobador || S.d.porAprobar.length || (S.d.horasPorAprobar || []).length) items.push(['aprobar', 'Aprobar', 'aprobar']);
     $('#nav').innerHTML = items.map(function (i) {
-      var n = i[0] === 'aprobar' ? S.d.porAprobar.length : 0;
+      var n = i[0] === 'aprobar' ? S.d.porAprobar.length + (S.d.horasPorAprobar || []).length : 0;
       return '<button data-v="' + i[0] + '" class="' + (S.vista === i[0] ? 'act' : '') + '"' + (S.vista === i[0] ? ' aria-current="page"' : '') + '>' + ico(i[2], 23) + i[1] + (n ? '<span class="insignia">' + n + '</span>' : '') + '</button>';
     }).join('');
     Array.prototype.forEach.call($('#nav').children, function (b) { b.onclick = function () { S.vista = b.getAttribute('data-v'); pintar(); window.scrollTo(0, 0); }; });
@@ -550,9 +550,28 @@ var CONFIG = {
 
   // ---------------------------------------------------------------- aprobar
   function vistaAprobar() {
-    var lista = S.d.porAprobar;
+    var lista = S.d.porAprobar, horas = S.d.horasPorAprobar || [];
     $('#vista').innerHTML = '<div class="sec-cab" style="margin-top:4px"><h3 class="titulo-marca">Por aprobar</h3></div>' +
-      (lista.length ? lista.map(function (p) { return tarjetaPermiso(p, true); }).join('') : '<section class="card"><div class="vacio">' + ico('check', 30) + '<br>No tienes solicitudes pendientes.</div></section>');
+      (lista.length || horas.length ? lista.map(function (p) { return tarjetaPermiso(p, true); }).join('') +
+        (horas.length ? '<div class="sec-cab"><h3 class="titulo-marca">Horas extras</h3></div>' + horas.map(tarjetaHoras).join('') : '')
+        : '<section class="card"><div class="vacio">' + ico('check', 30) + '<br>No tienes solicitudes pendientes.</div></section>');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-hapr]'), function (b) {
+      b.onclick = function () { revisarHoras(b.getAttribute('data-hapr'), 'aprobar', '', b); };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-hrech]'), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-hrech');
+        hoja('<h2>Rechazar horas extras</h2><p class="sub">Talento Humano verá este motivo y esas horas no se pagarán.</p><label class="et" for="mh">Motivo del rechazo</label><textarea class="entrada" id="mh"></textarea><div id="emh"></div><div class="pila"><button class="btn peligro ancho" id="bHRech">Rechazar</button><button class="btn borde ancho" id="bHCanc">Cancelar</button></div>', function (v, cerrar) {
+          $('#bHCanc', v).onclick = cerrar;
+          $('#bHRech', v).onclick = function () {
+            var m = $('#mh', v).value.trim();
+            if (m.length < 3) { $('#emh', v).innerHTML = '<div class="err-campo">Escribe el motivo.</div>'; return; }
+            revisarHoras(id, 'rechazar', m, $('#bHRech', v), cerrar);
+          };
+          setTimeout(function () { $('#mh', v).focus(); }, 50);
+        });
+      };
+    });
     Array.prototype.forEach.call(document.querySelectorAll('[data-apr]'), function (b) {
       b.onclick = function () { revisar(b.getAttribute('data-apr'), 'aprobar', '', b); };
     });
@@ -570,6 +589,20 @@ var CONFIG = {
         });
       };
     });
+  }
+  function tarjetaHoras(h) {
+    return '<article class="card permiso"><div class="top"><div><h3>' + esc(h.colaborador) + '</h3>' +
+      '<div class="rango">' + esc(h.dia) + ' ' + esc(h.fecha) + ' · ' + esc(h.jornada) + ' · ' + esc(String(h.trabajadas).replace('.', ',')) + ' h trabajadas</div></div>' +
+      '<span class="chip PENDIENTE">PENDIENTE</span></div>' +
+      '<div class="obs">' + esc(h.detalle.replace(/(\d)\.(\d)/g, '$1,$2')) + '</div>' +
+      (h.alerta ? '<div class="obs" style="color:#b42318"><b>Alerta:</b> ' + esc(h.alerta) + '</div>' : '') +
+      '<div class="acciones"><button class="btn borde" data-hrech="' + esc(h.id) + '">Rechazar</button><button class="btn" data-hapr="' + esc(h.id) + '">Aprobar</button></div></article>';
+  }
+  function revisarHoras(id, decision, motivo, boton, cerrar) {
+    boton.disabled = true;
+    api('revisarHoras', { id: id, decision: decision, motivo: motivo }).then(function (r) {
+      S.d.horasPorAprobar = r.horasPorAprobar; if (cerrar) cerrar(); pintar(); toast(r.mensaje);
+    }).catch(function (e) { boton.disabled = false; toast(e.message); });
   }
   function revisar(id, decision, motivo, boton, cerrar) {
     boton.disabled = true;
